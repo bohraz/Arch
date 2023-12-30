@@ -1,0 +1,28 @@
+title = "Arch"
+gitRepoUrl = "https://github.com/bohraz/Arch"
+gitSourceBranch = "main"
+
+[docusaurus]
+baseUrl = "/Arch"
+projectName = "Arch"
+tagline = "A powerful finite state machine library for Roblox"
+
+[footer]
+style = "dark"
+copyright = "Copyright © 2023 bohraz. Built with Moonwave and Docusaurus"
+
+[home]
+enabled = true
+includeReadme = false
+
+[[home.features]]
+title = "Hierarchical States"
+description = "Multiple state types foster precise logic control and adaptability to diverse application scenarios."
+
+[[home.features]]
+title = "Efficient Transitions"
+description = "Streamlined navigation includes user-defined callbacks, seamless conflict resolution, and optimized transitioning mechanisms."
+
+[[home.features]]
+title = "Logging & Debugging"
+description = "Built-in logging and debugging assist with server reconciliation and tracking state changes."

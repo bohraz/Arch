@@ -1,0 +1,18 @@
+{
+	"name": "arch-test",
+	"tree": {
+		"$className": "DataModel",
+		"ServerScriptService": {
+			"$className": "ServerScriptService",
+			"testing": {
+				"$path": "tests",
+				"Packages": {
+					"$path": "Packages",
+					"Arch": {
+						"$path": "default.project.json"
+					}
+				}
+			}
+		}
+	}
+}
