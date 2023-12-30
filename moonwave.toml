@@ -5,7 +5,7 @@ gitSourceBranch = "main"
 [docusaurus]
 baseUrl = "/Arch"
 projectName = "Arch"
-tagline = "A powerful finite state machine library for Roblox"
+tagline = "A powerful state machine library for Roblox"
 
 [footer]
 style = "dark"

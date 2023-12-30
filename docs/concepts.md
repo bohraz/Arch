@@ -6,7 +6,7 @@ sidebar_position: 3
 ## Machines
 
 ### Defining Machines
-As mentioned earlier, there are two ways to define a machine during creation: with a dictionary or with a file hierarchy.
+There are two ways to define a machine during creation: with a dictionary or with a file hierarchy.
 #### Dictionary
 ```lua title="Dictionary.lua"
 local myMachineDefinition = {
@@ -126,6 +126,25 @@ local myMachineDefinition = {
 }
 ```
 Note that the semantics of the parallel state does not call for multiple threads or truly concurrent processing. The children of parallel states execute in parallel in the sense that they are all simultaneously active and each one independently selects transitions for any event that is received. However, the parallel children process the event in a defined, serial order, so no conflicts or race conditions can occur.
+
+### Built-in garbage collection
+By setting the `janitor` property of any state to true, a state-specific [Janitor](https://github.com/howmanysmall/Janitor) will be added to the state context OnEntry and cleaned up automatically OnExit. "Janitor makes dealing with garbage collection much less annoying and stressful because it manages them all in a nice interface."
+```lua
+local myMachineDefinition = {
+    id = "myMachine",
+    initial = "StateA",
+    states = {
+        StateA = {
+            janitor = true
+            OnEntry = function(context)
+                local part = Instance.new("Part")
+                part.Parent = workspace
+                context.janitor:Add(part, "Destroy") -- automatically destroys this part when StateA is exited.
+            end,
+        }
+    }
+}
+```
 
 ## Transitions
 A transition is a change from one state to another, triggered by an event. It is important to consider that the existence of compound states implies that a transition may not just change from one state to another, but from one hierarchy of states to another.  

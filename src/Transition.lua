@@ -43,8 +43,10 @@ local function computeExitSet(enabledTransitions)
 	return statesToExit
 end
 
-local function exitStates(enabledTransitions, machine, context, ...)
-	local statesToExit = computeExitSet(enabledTransitions)
+local module = {}
+
+function module.exitStates(enabledTransitions, machine, context, ...)
+	local statesToExit = if not enabledTransitions then machine.configuration else computeExitSet(enabledTransitions)
 
 	for i, s in statesToExit do
 		if machine.debugMode then
@@ -202,8 +204,6 @@ local function passedGuards(transition, machine, context, ...)
 	return true
 end
 
-local module = {}
-
 function module.enterStates(enabledTransitions, machine, context, ...)
 	local statesForDefaultEntry = {}
 
@@ -219,7 +219,7 @@ function module.enterStates(enabledTransitions, machine, context, ...)
 			context["janitor"] = s.janitor
 		end
 
-		context.target = s
+		context.target = s.id
 
 		if s.OnEntry then
 			s.OnEntry(context, ...)
@@ -267,7 +267,7 @@ end
 function module.microstep(enabledTransitions, machine, context)
 	local timeBegan = if machine.logType == "workspace" then workspace:GetServerTimeNow() else os.clock()
 
-	local statesExited = exitStates(enabledTransitions, machine, context, table.unpack(machine._args))
+	local statesExited = module.exitStates(enabledTransitions, machine, context, table.unpack(machine._args))
 	executeTransitionContent(enabledTransitions, machine, context, table.unpack(machine._args))
 	local statesEntered = module.enterStates(enabledTransitions, machine, context, table.unpack(machine._args))
 

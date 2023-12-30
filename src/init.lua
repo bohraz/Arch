@@ -5,6 +5,7 @@ local Promise = require(script.Parent.promise)
 local Janitor = require(script.Parent.janitor)
 local Transition = require(script.Transition)
 local Check = require(script.Check)
+local Types = require(script.Types)
 
 local function createContext(machine, context)
 	context.Promise = Promise
@@ -235,6 +236,13 @@ local function addReferences(state, actions, guards, stateList)
 		end
 		state.OnExit = actions[state.OnExit]
 	end
+	if state.OnDestroy and typeof(state.OnDestroy) == "string" then
+		if not actions[state.OnDestroy] then
+			error("OnDestroy does not exist in the actions table!")
+		end
+		state.OnDestroy = actions[state.OnDestroy]
+	end
+
 	if state.janitor then
 		state.janitor = Janitor.new()
 	end
@@ -266,24 +274,46 @@ local function buildDatamodel(definition, stateList, machine)
 	return datamodel
 end
 
-local function initializeDatamodel(datamodel, machine)
+local function startStopDatamodel(datamodel, machine, stop)
 	for name, state in datamodel.states do
-		if state.OnInit then
-			state.OnInit(machine.context)
+		if not stop then
+			if state.OnInit then
+				state.OnInit(machine._context)
+			end
+			if machine.debugMode then
+				print("Init: " .. state.id)
+			end
+		elseif stop then
+			if state.OnDestroy then
+				state.OnDestroy(machine._context)
+			end
+			if machine.debugMode then
+				print("Destroy: " .. state.id)
+			end
 		end
-		if machine.debugMode then
-			print("Init: " .. state.id)
-		end
+
 		if state.states then
-			initializeDatamodel(state, machine)
+			startStopDatamodel(state, machine, stop)
 		end
 	end
 end
 
+--[=[
+	@class Machine
+	This is the machine.
+]=]
 local baseMachine = {}
 baseMachine.__index = baseMachine
 
-local function buildMachine(definition, options)
+--[=[
+	@within Arch
+	For creating a new hierarchical state machine. Constructs a state machine instance based on a provided definition and options list.
+
+	@param definition Definition -- the hierarchical structure that outlines the states, transitions, and behaviors of a state machine
+	@param options Options -- for tailoring the behavior of the state machine, setting initial context, and adding references for the definition
+	@return Machine
+]=]
+local function createMachine(definition: Types.Definition | ModuleScript, options: Types.Options)
 	local machine = {}
 	options = options or {}
 
@@ -316,13 +346,17 @@ local function buildMachine(definition, options)
 	return setmetatable(machine, baseMachine)
 end
 
+--[=[
+	@within Machine
+	Starts the machine, initializing all states and entering the initial configuration.
+]=]
 function baseMachine:Start()
 	if self._running then
 		warn("This machine is already running!")
 		return
 	end
 
-	initializeDatamodel(self.datamodel, self)
+	startStopDatamodel(self.datamodel, self)
 
 	self._running = true
 	self.datamodel.active = true
@@ -331,6 +365,30 @@ function baseMachine:Start()
 	task.spawn(mainEventLoop, self)
 end
 
+--[=[
+	@within Machine
+	Stops the machine, exiting all active states then destroying all states in the datamodel.
+]=]
+function baseMachine:Stop()
+	if not self._running then
+		warn("This machine isn't even running!")
+		return
+	end
+
+	Transition.exitStates(false, self, self._context)
+	startStopDatamodel(self.datamodel, self, true)
+
+	self._running = false
+	self.datamodel.active = false
+end
+
+--[=[
+	@within Machine
+	Sends events to the machine by adding to the event queue.
+
+	@param eventName string -- name of the event to be sent to the machine
+	@param ... any -- all further parameters to be sent to all state and transition callbacks if the machine finds a transition for the event
+]=]
 function baseMachine:Send(eventName, ...)
 	if not self._running then
 		warn("This machine is not running yet, make sure to Start the machine before sending events!")
@@ -342,5 +400,5 @@ function baseMachine:Send(eventName, ...)
 end
 
 return {
-	createMachine = buildMachine,
+	createMachine = createMachine,
 }

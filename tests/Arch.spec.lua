@@ -99,7 +99,6 @@ return function()
 			end).never.to.throw()
 		end)
 	end)
-
 	describe("a multi-layer machine", function()
 		local machine
 		it("should be able to build and start", function()
@@ -111,6 +110,8 @@ return function()
 					states = {
 						ChildA = {
 							initial = "GrandchildA",
+							OnExit = function() end,
+							OnDestroy = "destroyA",
 
 							states = {
 								GrandchildA = {},
@@ -129,6 +130,8 @@ return function()
 						ChildB = {
 							initial = "GrandchildC",
 							history = "deep",
+
+							OnDestroy = function(context) end,
 
 							events = {
 								["CB-CA"] = "ChildA",
@@ -170,6 +173,11 @@ return function()
 								GrandchildF = {},
 							},
 						},
+					},
+				}, {
+					context = {},
+					actions = {
+						destroyA = function() end,
 					},
 				})
 				machine:Start()
@@ -213,6 +221,15 @@ return function()
 				assert(machine.configuration[1].id == "GrandchildE" or machine.configuration[1].id == "GrandchildF")
 				assert(machine.configuration[2].id == "GrandchildE" or machine.configuration[2].id == "GrandchildF")
 			end).never.to.throw()
+		end)
+
+		it("should exit and destroy", function()
+			expect(function()
+				machine:Stop()
+			end).never.to.throw()
+			expect(function()
+				error(machine._running)
+			end).to.throw(false)
 		end)
 	end)
 end
