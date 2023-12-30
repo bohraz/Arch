@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[869],{3891:s=>{s.exports=JSON.parse('{"sourceUrl":"https://github.com/bohraz/Arch/blob/main","baseUrl":"/Arch/","classOrder":[],"apiCategories":[]}')}}]);
