@@ -77,7 +77,9 @@ function module.exitStates(enabledTransitions, machine, context, ...)
 
 		table.remove(machine.configuration, table.find(machine.configuration, s))
 		s.active = false
-		s.parent.current = nil
+		if s.parent then
+			s.parent.current = nil
+		end
 	end
 
 	return statesToExit
@@ -176,7 +178,7 @@ local function checkForAfter(state, machine)
 		return
 	end
 
-	local startTime = if machine.logType == "workspace" then workspace:GetServerTimeNow() else os.clock()
+	local startTime = machine.logTime and workspace:GetServerTimeNow()
 
 	for i, transition in state.events.after do
 		local thread = task.delay(transition.delay, function()
@@ -190,6 +192,7 @@ end
 function executeTransitionContent(enabledTransitions, machine, context, ...)
 	for i, t in enabledTransitions do
 		for _, action in t.actions or {} do
+			context.janitor = if t.target then t.target.janitor else nil
 			action(context, ...)
 		end
 	end
@@ -216,7 +219,7 @@ function module.enterStates(enabledTransitions, machine, context, ...)
 		end
 
 		if s.janitor then
-			context["janitor"] = s.janitor
+			context.janitor = s.janitor
 		end
 
 		context.target = s.id
@@ -224,6 +227,8 @@ function module.enterStates(enabledTransitions, machine, context, ...)
 		if s.OnEntry then
 			s.OnEntry(context, ...)
 		end
+
+		context.target = nil
 
 		if s.parent and not Check.isParallel(s.parent) then
 			s.parent.current = s
@@ -265,19 +270,19 @@ function module.selectTransitions(machine, context) --completed
 end
 
 function module.microstep(enabledTransitions, machine, context)
-	local timeBegan = if machine.logType == "workspace" then workspace:GetServerTimeNow() else os.clock()
+	local timeBegan = machine.logTime and workspace:GetServerTimeNow()
 
 	local statesExited = module.exitStates(enabledTransitions, machine, context, table.unpack(machine._args))
 	executeTransitionContent(enabledTransitions, machine, context, table.unpack(machine._args))
 	local statesEntered = module.enterStates(enabledTransitions, machine, context, table.unpack(machine._args))
 
-	local timeEnded = if machine.logType == "workspace" then workspace:GetServerTimeNow() else os.clock()
+	local timeEnded = machine.logTime and workspace:GetServerTimeNow()
 
 	local log = {
 		statesEntered = statesEntered,
 		statesExited = statesExited,
 		transitions = enabledTransitions,
-		event = machine._event,
+		context = context,
 		timeBegan = timeBegan,
 		timeEnded = timeEnded,
 	}

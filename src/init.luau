@@ -149,31 +149,6 @@ local function translateDefinition(parent, substates, stateList)
 	return states
 end
 
-local function createDefinitionFromHierarchy(file)
-	if not typeof(file) == "Instance" or not file:IsA("ModuleScript") then
-		error("File must be a ModuleScript!")
-	end
-	local state = require(file)
-
-	local fileChildren = file:GetChildren()
-	if #fileChildren > 0 then
-		for _, child in fileChildren do
-			if child:IsA("ModuleScript") then
-				if not state.states then
-					state.states = {}
-				end
-
-				local s = createDefinitionFromHierarchy(child)
-				if not s.omit then
-					state.states[child.Name] = s
-				end
-			end
-		end
-	end
-
-	return state
-end
-
 local function addReferences(state, actions, guards, stateList)
 	if Check.isCompound(state) or Check.isHistory(state) then
 		if not state.initial then
@@ -304,6 +279,7 @@ end
 ]=]
 local baseMachine = {}
 baseMachine.__index = baseMachine
+local livingMachines = {}
 
 --[=[
 	@within Arch
@@ -313,7 +289,7 @@ baseMachine.__index = baseMachine
 	@param options Options -- for tailoring the behavior of the state machine, setting initial context, and adding references for the definition
 	@return Machine
 ]=]
-local function createMachine(definition: Types.Definition | ModuleScript, options: Types.Options)
+local function createMachine(definition, options)
 	local machine = {}
 	options = options or {}
 
@@ -333,17 +309,22 @@ local function createMachine(definition: Types.Definition | ModuleScript, option
 	machine.EventAdded = Signal.new()
 
 	machine.maxLogs = options.maxLogs or 30
-	machine.logType = options.logType or "default"
+	machine.logTime = options.logTime or false
 
 	machine.debugMode = options.debugMode or false
 
-	if typeof(definition) == "Instance" and definition:IsA("ModuleScript") then
-		definition = createDefinitionFromHierarchy(definition)
-	end
-
 	machine.datamodel = buildDatamodel(definition, machine._stateList, machine)
+	machine.id = options.id or definition.id
 
 	return setmetatable(machine, baseMachine)
+end
+
+--[=[
+	@within Arch
+	Returns the machine with the matching id, if there is one.
+]=]
+local function getMachine(id: string)
+	return livingMachines[id]
 end
 
 --[=[
@@ -363,6 +344,7 @@ function baseMachine:Start()
 
 	Transition.enterStates({ { target = self.datamodel } }, self, self._context)
 	task.spawn(mainEventLoop, self)
+	livingMachines[self.id] = self
 end
 
 --[=[
@@ -380,6 +362,7 @@ function baseMachine:Stop()
 
 	self._running = false
 	self.datamodel.active = false
+	livingMachines[self.id] = nil
 end
 
 --[=[
@@ -401,4 +384,5 @@ end
 
 return {
 	createMachine = createMachine,
+	getMachine = getMachine,
 }

@@ -10,7 +10,7 @@ Include the Arch library in your Roblox project by installing it with wally or t
 
 ```toml title="wally.toml"
 [dependencies]
-Arch = "bohraz/arch@0.2.1"
+Arch = "bohraz/arch@latest"
 ```
 ```lua
 local Arch = require(path.to.Arch)

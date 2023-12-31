@@ -1,4 +1,3 @@
-local Janitor = require(script.Parent.Parent.janitor)
 --[=[
 	@class Arch
 	This is the Arch class
@@ -7,7 +6,7 @@ local Janitor = require(script.Parent.Parent.janitor)
 @type Context { janitor: any, event: string, Send: (string, any) -> (), target: string?, any: any, }
 @within Arch ]=]
 --[=[
-@type Options { context: { any }?, actions: { string: (Context, any) -> () }?, guards: { string: (Context, any) -> boolean }?, maxLogs: number?, logTime: boolean?, debugMode: boolean?, }
+@type Options { id: string, context: { any }?, actions: { string: (Context, any) -> () }?, guards: { string: (Context, any) -> boolean }?, maxLogs: number?, logTime: boolean?, debugMode: boolean?, }
 @within Arch ]=]
 --[=[
 @type Action (Context, any) -> ()
@@ -34,7 +33,7 @@ local Janitor = require(script.Parent.Parent.janitor)
 type Action = (Context, any) -> ()
 type Guard = (Context, any) -> boolean
 
-export type Context = { janitor: Janitor.Janitor?, event: string, Send: (string, any) -> (), target: string?, any: any }
+export type Context = { janitor: any, event: string, Send: (string, any) -> (), target: string?, any: any }
 
 export type Transition =
 	string
@@ -51,9 +50,43 @@ type AtomicState = {
 
 	events: { string: Transition }?,
 }
-type CompoundState = AtomicState & { initial: string, states: States }
-type HistoryState = CompoundState & { history: string }
-type ParallelState = AtomicState & { parallel: true, states: States }
+type CompoundState = {
+	id: string,
+	initial: string,
+
+	OnInit: ((Context, any) -> ())?,
+	OnEntry: ((Context, any) -> ())?,
+	OnExit: ((Context, any) -> ())?,
+	OnDestroy: ((Context, any) -> ())?,
+
+	events: { string: Transition }?,
+	states: States,
+}
+type HistoryState = {
+	id: string,
+	initial: string,
+	history: string,
+
+	OnInit: ((Context, any) -> ())?,
+	OnEntry: ((Context, any) -> ())?,
+	OnExit: ((Context, any) -> ())?,
+	OnDestroy: ((Context, any) -> ())?,
+
+	events: { string: Transition }?,
+	states: States,
+}
+type ParallelState = {
+	id: string,
+	parallel: true,
+
+	OnInit: ((Context, any) -> ())?,
+	OnEntry: ((Context, any) -> ())?,
+	OnExit: ((Context, any) -> ())?,
+	OnDestroy: ((Context, any) -> ())?,
+
+	events: { string: Transition }?,
+	states: States,
+}
 
 type States = { string: CompoundState | AtomicState | HistoryState | ParallelState }
 
@@ -63,9 +96,10 @@ export type Definition = {
 	parallel: boolean?,
 
 	states: States,
-} | ModuleScript
+}
 
 export type Options = {
+	id: string?,
 	context: { any }?, -- sets the initial context of the machine passed to each state
 	actions: { string: Action }?, -- dictionary of actions that can be referenced by state and transition callbacks by setting them equal to a key in this dictionary
 	guards: { string: Guard }?, -- dictionary of guards that can be referenced by transitions by setting them equal to a key in this dictionary

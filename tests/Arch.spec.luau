@@ -38,6 +38,7 @@ return function()
 						},
 						StateB = {
 							id = "StateB",
+							janitor = true,
 
 							events = {
 								Switch1 = {
@@ -48,6 +49,30 @@ return function()
 									actions = {
 										function() end,
 										"RandomStringAction",
+									},
+								},
+								ToC = "StateC",
+							},
+						},
+						StateC = {
+							id = "StateC",
+
+							OnEntry = function() end,
+							OnExit = function() end,
+
+							events = {
+								refresh = "StateC",
+								targetless = {
+									actions = {
+										function() end,
+									},
+								},
+								ToB = {
+									target = "StateB",
+									actions = {
+										function(context)
+											context.janitor:Add(Instance.new("Part"), "Destroy")
+										end,
 									},
 								},
 							},
@@ -77,6 +102,31 @@ return function()
 				machine:Send("Switch2")
 				assert(machine.configuration[1].id == "StateA")
 				machine:Send("Switch3")
+			end).never.to.throw()
+		end)
+
+		it("should be able to self-transition", function()
+			expect(function()
+				machine:Send("ToC")
+				assert(machine.configuration[1].id == "StateC")
+			end).never.to.throw()
+			expect(function()
+				machine:Send("refresh")
+				assert(machine.configuration[1].id == "StateC")
+			end).never.to.throw()
+		end)
+
+		it("should allow targetless transitions", function()
+			expect(function()
+				machine:Send("targetless")
+				assert(machine.configuration[1].id == "StateC")
+			end).never.to.throw()
+		end)
+
+		it("should give janitor to targeted transition actions", function()
+			expect(function()
+				machine:Send("ToB")
+				assert(machine.configuration[1].id == "StateB")
 			end).never.to.throw()
 		end)
 

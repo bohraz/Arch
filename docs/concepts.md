@@ -6,8 +6,7 @@ sidebar_position: 3
 ## Machines
 
 ### Defining Machines
-There are two ways to define a machine during creation: with a dictionary or with a file hierarchy.
-#### Dictionary
+Every definition must have an id, an initial(or parallel = true) property, and a states table.
 ```lua title="Dictionary.lua"
 local myMachineDefinition = {
     id = "myMachine",
@@ -26,39 +25,6 @@ local myMachineDefinition = {
 
 local myMachine = Arch.createMachine(myMachineDefinition)
 ```
-#### File Hierarchy
-Using a file hierarchy instead of a dictionary is useful for machines that have many layers of state nesting.  
-To create a machine with a file hierarchy, you simply create a ModuleScript for the machine and each state and set the hierarchy accordingly. You can exclude the `states` property of each state because `createMachine` automatically builds it based on the file hierarchy. Finally, pass the machine ModuleScript Instance as the definition for `createMachine`. Here's an example:
-```lua title="myMachine.lua"
-local myMachine = {}
-
-myMachine.id = "myMachine"
-myMachine.initial = "StateA"
-
-return myMachine
-```
-```lua title="StateA.lua"
---child of myMachine
-local state = {}
-
-state.id = "StateA"
-state.initial = "ChildStateA"
-
-return state
-```
-```lua title="ChildStateA.lua"
---child of StateA
-local state = {}
-
-state.id = "ChildStateA"
-
-return state
-```
-```lua title="initializeMyMachine.lua"
-local myMachineFile = path.to.myMachine -- do not require, you must pass the actual ModuleScript Instance
-
-local myMachine = Arch.createMachine(myMachineFile)
-```
 ### Options
 The `options` dictionary, which is the optional second parameter of `createMachine`, consists of several properties that change the behavior of the state machine or act as references for it.  
 ```lua
@@ -67,7 +33,7 @@ local options = {
     actions = {}, -- dictionary of actions that can be referenced by state and transition callbacks
     guards = {}, -- dictionary of guards that can be referenced by transitions
     maxLogs = 30, -- max logs in the log history, when the max is reached it deletes the oldest log
-    logTime = true, -- wip determines whether or not to include a time property to each log
+    logTime = true, -- determines whether or not to include a time property to each log
     debugMode = true, -- when set to true, the machine will print basic changes in the machine such as entering and exiting of states
 }
 
@@ -127,25 +93,6 @@ local myMachineDefinition = {
 ```
 Note that the semantics of the parallel state does not call for multiple threads or truly concurrent processing. The children of parallel states execute in parallel in the sense that they are all simultaneously active and each one independently selects transitions for any event that is received. However, the parallel children process the event in a defined, serial order, so no conflicts or race conditions can occur.
 
-### Built-in garbage collection
-By setting the `janitor` property of any state to true, a state-specific [Janitor](https://github.com/howmanysmall/Janitor) will be added to the state context OnEntry and cleaned up automatically OnExit. "Janitor makes dealing with garbage collection much less annoying and stressful because it manages them all in a nice interface."
-```lua
-local myMachineDefinition = {
-    id = "myMachine",
-    initial = "StateA",
-    states = {
-        StateA = {
-            janitor = true
-            OnEntry = function(context)
-                local part = Instance.new("Part")
-                part.Parent = workspace
-                context.janitor:Add(part, "Destroy") -- automatically destroys this part when StateA is exited.
-            end,
-        }
-    }
-}
-```
-
 ## Transitions
 A transition is a change from one state to another, triggered by an event. It is important to consider that the existence of compound states implies that a transition may not just change from one state to another, but from one hierarchy of states to another.  
 Transitions are "deterministic", meaning each combination of state and event always points to the same next state. When a state machine receives an event, only the active states are checked to see if any of them have a transition for the event. The state that is being transitioned from is called the source, and the state that is being transitioned to is called the target.
@@ -153,39 +100,59 @@ Transitions are "deterministic", meaning each combination of state and event alw
 ### Creating transitions
 Transitions are created by adding an events property to a state. The following examples, which have the same effect, show the three unique ways to create a transition.
 ```lua
-local state = {}
-
-state.id = "StateA"
-state.events = {
-    Event1 = "StateB", -- shorthand 
-    Event2 = { target = "StateB" }, -- allows for greater customizability of the transition
-    Event3 = { { target = "StateB" } }, -- allows for multiple transitions in a single event, we will cover this next
+StateA = {
+    events = {
+        Event1 = "StateB", -- shorthand 
+        Event2 = { target = "StateB" }, -- allows for greater customizability of the transition
+        Event3 = { { target = "StateB" } }, -- allows for multiple transitions in a single event, we will cover this next
+    }
 }
-
-return state
 ```
 
 ### Guards & Actions
 Transitions can include a list of guards, which are functions that must return true in order to accept a transition. If an event has multiple transitions, the state machine checks each transition in order until all of a transition's guards return true, that becomes the selected transition. Guards can be literal functions or string references to the guards property of `options`. In the following example of an Idle state for a combat system, if the player activates their tool the state machine will check first if the player isJumping, a reference to the guards in `options`. If so, then a jump attack will play. If not, the state machine will check if the player isCrouching and if so perform a trip attack.
 ```lua
-state.id = "Idle"
-state.events = {
-    ToolActivated = {
-        { target = "Jump Attack", guards = {"isJumping"} },
-        { target = "Trip Attack", guards = {"isCrouching"} }
+StateA = {
+    events = {
+        ToolActivated = {
+            { target = "Jump Attack", guards = {"isJumping"} },
+            { target = "Trip Attack", guards = {"isCrouching"} }
+        }
     }
 }
 ```
 Transitions can also include a list of actions, which are functions that are to be called between exiting the source states and entering the target states. These actions can be literal functions or string references to the functions in the actions property of `options`. The actions specified in the actions table of a transition are executed in order. In the following example, guards and actions are used for a directional walking system.
 ```lua
-state.events = {
-    updateWalkDirection = { guards = { "isDifferentDirection" }, actions = { "exitAnimation", "enterWalking" } }
+StateA = {
+    events = {
+        updateWalkDirection = { guards = { "isDifferentDirection" }, actions = { "exitAnimation", "enterWalking" } }
+    }
 }
 ```
 ### Delayed (after) transitions
 Delayed transitions are transitions that happen automatically after a specific interval of time. They are denoted in the "after" property of the events table like so:
 ```lua
-state.events = {
-    after = { target = "StateB", delay = 3 } -- automatically transitions to StateB after 3 seconds if no other transitions are called
+StateA = {
+    events = {
+        after = { target = "StateB", delay = 3 } -- automatically transitions to StateB after 3 seconds if no other transitions are called
+    }
+}
+```
+### Targetless transitions
+Targetless transitions are transitions that only run the transition's actions and do not change the state of the machine.
+```lua
+StateA = {
+    events = {
+        myTargetlessTransition = { guards = { "canDoMyTargetlessTransition" }, actions = { "updateSomething" } }
+    }
+}
+```
+### Self-transitions
+Self transitions are transitions that exit and re-enter the current state, allowing a refresh behavior.
+```lua
+StateA = {
+    events = {
+        mySelfTransition = { target = "StateA" }
+    }
 }
 ```
