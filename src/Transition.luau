@@ -161,6 +161,48 @@ local function addAncestorStatesToEnter(state, ancestor, statesToEnter) -- compl
 	end
 end
 
+local function addDescendantStatesToUpdate(state, statesToUpdate, deepHistory) -- completed
+	if state.history then
+		addDescendantStatesToUpdate(
+			state.historyState or state.initial,
+			statesToUpdate,
+			deepHistory or state.history == "deep"
+		)
+	else
+		if Check.isCompound(state) then
+			addDescendantStatesToUpdate(
+				if deepHistory then state.historyState or state.initial else state.initial,
+				statesToUpdate,
+				deepHistory
+			)
+		elseif Check.isParallel(state) then
+			for _, child in state.states do
+				if not Sift.Array.some(statesToUpdate, Check.isDescendant(child)) then
+					addDescendantStatesToUpdate(child, statesToUpdate)
+				end
+			end
+		end
+	end
+	table.insert(statesToUpdate, 1, state)
+end
+
+local function addAncestorStatesToUpdate(state, ancestor, statesToUpdate) -- completed
+	for i, anc in getProperAncestors(state, ancestor) do
+		if not anc.parent or anc == ancestor then
+			break -- test does this change functionality?
+		end
+		table.insert(statesToUpdate, 1, anc)
+		if Check.isParallel(anc) then
+			for _, child in anc.states do
+				if not Sift.Array.some(statesToUpdate, Check.isDescendant(child)) then
+					addDescendantStatesToUpdate(child, statesToUpdate)
+				end
+			end
+		end
+		--if anc Check.is a parallel state then fill descendants as well
+	end
+end
+
 local function computeEntrySet(transitions)
 	local statesToEnter = {}
 	for i, t in transitions do
@@ -171,6 +213,18 @@ local function computeEntrySet(transitions)
 		end
 	end
 	return statesToEnter
+end
+
+local function computeUpdateSet(transitions)
+    local statesToUpdate = {}
+    for i, t in transitions do
+        if t.target then
+            local ancestor = getTransitionDomain(t)
+			addDescendantStatesToUpdate(t.target, statesToUpdate)
+			addAncestorStatesToUpdate(t.target, ancestor, statesToUpdate)
+        end
+    end
+    return statesToUpdate
 end
 
 local function checkForAfter(state, machine)
@@ -213,6 +267,7 @@ function module.enterStates(enabledTransitions, machine, context, ...)
 	local defaultHistoryContent = {}
 
 	local statesToEnter = computeEntrySet(enabledTransitions)
+
 	for i, s in statesToEnter do
 		if machine.debugMode then
 			print("Enter: " .. s.id)
@@ -241,6 +296,42 @@ function module.enterStates(enabledTransitions, machine, context, ...)
 	end
 
 	return statesToEnter
+end
+
+function module.updateStates(enabledTransitions,machine,context,...)
+
+    local statesToUpdate = computeUpdateSet(enabledTransitions)
+
+    for i,s in statesToUpdate do
+
+        if machine.debugMode then
+			print("Updated: " .. s.id)
+		end
+
+        if s.janitor then
+			context.janitor = s.janitor
+		end
+
+        context.target = s.id
+
+        if s.OnUpdate then
+			s.OnUpdate(context, ...)
+		end
+
+        context.target = nil
+
+		if s.parent and not Check.isParallel(s.parent) then
+			s.parent.current = s
+		end
+
+		s.active = true
+		checkForAfter(s, machine)
+
+		table.insert(machine.configuration, 1, s)
+
+    end
+
+    return statesToUpdate
 end
 
 function module.selectTransitions(machine, context) --completed
@@ -273,12 +364,16 @@ function module.microstep(enabledTransitions, machine, context)
 	local timeBegan = machine.logTime and workspace:GetServerTimeNow()
 
 	local statesExited = module.exitStates(enabledTransitions, machine, context, table.unpack(machine._args))
+    local updateStates = module.updateStates(enabledTransitions,machine,context,table.unpack(machine._args))
+    
 	executeTransitionContent(enabledTransitions, machine, context, table.unpack(machine._args))
-	local statesEntered = module.enterStates(enabledTransitions, machine, context, table.unpack(machine._args))
-
+    
+    local statesEntered = module.enterStates(enabledTransitions, machine, context, table.unpack(machine._args))
+    
 	local timeEnded = machine.logTime and workspace:GetServerTimeNow()
 
 	local log = {
+        updateStates = updateStates,
 		statesEntered = statesEntered,
 		statesExited = statesExited,
 		transitions = enabledTransitions,

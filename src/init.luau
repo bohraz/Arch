@@ -1,4 +1,5 @@
 local ContextActionService = game:GetService("ContextActionService")
+local RunService = game:GetService("RunService")
 local Sift = require(script.Parent.sift)
 local Signal = require(script.Parent.signal)
 local Promise = require(script.Parent.promise)
@@ -19,6 +20,7 @@ end
 
 local function mainEventLoop(machine)
 	while machine._running do
+        
 		local enabledTransitions = {}
 		local macrostepDone = false
 
@@ -41,6 +43,13 @@ local function mainEventLoop(machine)
 
 		machine.EventAdded:Wait()
 	end
+end
+
+local function updateEventLoop(machine)
+    while machine._running do
+        Transition.updateStates({ { target = machine.datamodel } }, machine, machine._context)
+        task.wait()
+    end
 end
 
 local function transitionIsString(transition, events, event, state)
@@ -107,6 +116,7 @@ local function translateDefinition(parent, substates, stateList)
 				if typeof(transitionList) == "string" then
 					error("Top-Level transitions can not be strings!")
 				elseif typeof(transitionList) == "table" then
+                    print(event)
 					transitionIsTable(transitionList, datamodel.events, event, datamodel)
 				end
 			end
@@ -182,6 +192,7 @@ local function addReferences(state, actions, guards, stateList)
 				if transition.actions then
 					for i, action in transition.actions do
 						if typeof(action) == "string" then
+                            print(actions[action])
 							if not actions[action] then
 								error(action .. " does not exist in the actions table!")
 							end
@@ -205,6 +216,12 @@ local function addReferences(state, actions, guards, stateList)
 		end
 		state.OnEntry = actions[state.OnEntry]
 	end
+    if state.OnUpdate and typeof(state.OnUpdate) == "string" then
+        if not actions[state.OnUpdate] then
+            error("OnUpdate does not exist in the actions table!")
+        end
+        state.OnUpdate = actions[state.OnUpdate]
+    end
 	if state.OnExit and typeof(state.OnExit) == "string" then
 		if not actions[state.OnExit] then
 			error("OnExit does not exist in the actions table!")
@@ -273,6 +290,8 @@ local function startStopDatamodel(datamodel, machine, stop)
 	end
 end
 
+
+
 --[=[
 	@class Machine
 	This is the machine.
@@ -292,6 +311,7 @@ local livingMachines = {}
 local function createMachine(definition, options)
 	local machine = {}
 	options = options or {}
+
 
 	machine._context = createContext(machine, options.context or {})
 
@@ -344,6 +364,7 @@ function baseMachine:Start()
 
 	Transition.enterStates({ { target = self.datamodel } }, self, self._context)
 	task.spawn(mainEventLoop, self)
+    task.spawn(updateEventLoop, self)
 	livingMachines[self.id] = self
 end
 
