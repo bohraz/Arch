@@ -1,16 +1,14 @@
-local ContextActionService = game:GetService("ContextActionService")
-local RunService = game:GetService("RunService")
 local Sift = require(script.Parent.sift)
 local Signal = require(script.Parent.signal)
 local Promise = require(script.Parent.promise)
 local Janitor = require(script.Parent.janitor)
 local Transition = require(script.Transition)
 local Check = require(script.Check)
-local Types = require(script.Types)
 
 local function createContext(machine, context)
 	context.Promise = Promise
 	context.Sift = Sift
+
 	function context.Send(eventName, ...)
 		machine:Send(eventName, ...)
 	end
@@ -18,38 +16,79 @@ local function createContext(machine, context)
 	return context
 end
 
+local function getActiveNestedStates(config, activeNestedStates)
+	for _, state in config do
+		if not state.active then
+			continue
+		end
+
+		if Check.isParallel(state) then
+			getActiveNestedStates(state.states, activeNestedStates)
+		elseif Check.isCompound(state) or Check.isHistory(state) then
+			local cont = false
+			for _, nState in activeNestedStates do
+				if Check.isDescendant(nState, state) then
+					cont = true
+					continue
+				end
+			end
+			if cont then
+				continue
+			end
+			getActiveNestedStates({ state.current }, activeNestedStates)
+		elseif Check.isAtomic(state) then
+			table.insert(activeNestedStates, state)
+		end
+	end
+end
+
+local function getExitedNestedStates(exited, stateList)
+	for _, state in exited do
+		if Check.isParallel(state) or Check.isCompound(state) or Check.isHistory(state) then
+			getExitedNestedStates(state.states, stateList)
+		elseif Check.isAtomic(state) then
+			table.insert(stateList, state)
+		end
+	end
+end
+
 local function mainEventLoop(machine)
 	while machine._running do
-        
 		local enabledTransitions = {}
 		local macrostepDone = false
+		local event
 
 		while machine._running and not macrostepDone do
 			if #machine._queue > 0 then
-				local event = table.remove(machine._queue, 1)
-				machine._context.event = event.name
+				event = table.remove(machine._queue, 1)
+				machine.context.event = event.name
 				machine._args = event.args
 
-				enabledTransitions = Transition.selectTransitions(machine, machine._context)
+				enabledTransitions = Transition.selectTransitions(machine, machine.context)
 			else
 				macrostepDone = true
 				continue
 			end
 
 			if #enabledTransitions > 0 then
-				Transition.microstep(enabledTransitions, machine, machine._context)
+				local exited = Transition.microstep(enabledTransitions, machine, machine.context)
+
+				machine.value = {}
+				machine.history = {}
+
+				getActiveNestedStates(machine.configuration, machine.value)
+				getExitedNestedStates(exited, machine.history)
 			end
 		end
 
+		machine.onTransition:Fire({
+			context = machine.context,
+			value = machine.value,
+			history = machine.history,
+		})
+
 		machine.EventAdded:Wait()
 	end
-end
-
-local function updateEventLoop(machine)
-    while machine._running do
-        Transition.updateStates({ { target = machine.datamodel } }, machine, machine._context)
-        task.wait()
-    end
 end
 
 local function transitionIsString(transition, events, event, state)
@@ -94,6 +133,9 @@ local function translateTransitions(events, state)
 		end
 
 		if event == "after" then
+			if not state.threads then
+				state.threads = {}
+			end
 			for _, delayedT in transition do
 				table.insert(delayedT.guards, "after")
 			end
@@ -116,7 +158,6 @@ local function translateDefinition(parent, substates, stateList)
 				if typeof(transitionList) == "string" then
 					error("Top-Level transitions can not be strings!")
 				elseif typeof(transitionList) == "table" then
-                    print(event)
 					transitionIsTable(transitionList, datamodel.events, event, datamodel)
 				end
 			end
@@ -192,7 +233,6 @@ local function addReferences(state, actions, guards, stateList)
 				if transition.actions then
 					for i, action in transition.actions do
 						if typeof(action) == "string" then
-                            print(actions[action])
 							if not actions[action] then
 								error(action .. " does not exist in the actions table!")
 							end
@@ -216,12 +256,6 @@ local function addReferences(state, actions, guards, stateList)
 		end
 		state.OnEntry = actions[state.OnEntry]
 	end
-    if state.OnUpdate and typeof(state.OnUpdate) == "string" then
-        if not actions[state.OnUpdate] then
-            error("OnUpdate does not exist in the actions table!")
-        end
-        state.OnUpdate = actions[state.OnUpdate]
-    end
 	if state.OnExit and typeof(state.OnExit) == "string" then
 		if not actions[state.OnExit] then
 			error("OnExit does not exist in the actions table!")
@@ -251,13 +285,10 @@ local function buildDatamodel(definition, stateList, machine)
 	datamodel.initial = definition.initial
 	datamodel.active = false
 
-	definition.actions = definition.actions or {}
-	definition.guards = definition.guards or {}
+	machine._guards["after"] = function(context, delayTime, startTime)
+		local currentTime = os.clock()
 
-	definition.guards["after"] = function(context, eventName, transition, startTime)
-		local currentTime = if machine.logType == "workspace" then workspace:GetServerTimeNow() else os.clock()
-
-		return currentTime - startTime >= transition.delay
+		return currentTime - startTime >= delayTime
 	end
 
 	datamodel = translateDefinition(nil, definition, stateList)
@@ -270,14 +301,14 @@ local function startStopDatamodel(datamodel, machine, stop)
 	for name, state in datamodel.states do
 		if not stop then
 			if state.OnInit then
-				state.OnInit(machine._context)
+				state.OnInit(machine.context)
 			end
 			if machine.debugMode then
 				print("Init: " .. state.id)
 			end
 		elseif stop then
 			if state.OnDestroy then
-				state.OnDestroy(machine._context)
+				state.OnDestroy(machine.context)
 			end
 			if machine.debugMode then
 				print("Destroy: " .. state.id)
@@ -289,8 +320,6 @@ local function startStopDatamodel(datamodel, machine, stop)
 		end
 	end
 end
-
-
 
 --[=[
 	@class Machine
@@ -312,8 +341,7 @@ local function createMachine(definition, options)
 	local machine = {}
 	options = options or {}
 
-
-	machine._context = createContext(machine, options.context or {})
+	machine.context = createContext(machine, options.context or {})
 
 	machine._running = false
 
@@ -327,13 +355,17 @@ local function createMachine(definition, options)
 	machine._guards = options.guards or {} -- dictionary
 
 	machine.EventAdded = Signal.new()
+	machine.onTransition = Signal.new()
+
+	machine.value = {}
+	machine.history = {}
 
 	machine.maxLogs = options.maxLogs or 30
 	machine.logTime = options.logTime or false
 
 	machine.debugMode = options.debugMode or false
 
-	machine.datamodel = buildDatamodel(definition, machine._stateList, machine)
+	machine.datamodel = buildDatamodel(Sift.Dictionary.copyDeep(definition), machine._stateList, machine)
 	machine.id = options.id or definition.id
 
 	return setmetatable(machine, baseMachine)
@@ -362,9 +394,8 @@ function baseMachine:Start()
 	self._running = true
 	self.datamodel.active = true
 
-	Transition.enterStates({ { target = self.datamodel } }, self, self._context)
+	Transition.enterStates({ { target = self.datamodel } }, self, self.context)
 	task.spawn(mainEventLoop, self)
-    task.spawn(updateEventLoop, self)
 	livingMachines[self.id] = self
 end
 
@@ -378,7 +409,7 @@ function baseMachine:Stop()
 		return
 	end
 
-	Transition.exitStates(false, self, self._context)
+	Transition.exitStates(false, self, self.context)
 	startStopDatamodel(self.datamodel, self, true)
 
 	self._running = false

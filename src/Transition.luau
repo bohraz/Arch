@@ -64,10 +64,10 @@ function module.exitStates(enabledTransitions, machine, context, ...)
 		if s.threads and #s.threads > 0 then
 			while #s.threads > 0 do
 				local thread = table.remove(s.threads, 1)
-				if coroutine.status(thread) == "normal" or coroutine.status(thread) == "running" then
-					coroutine.yield(thread)
+
+				if coroutine.status(thread) == "suspended" then
+					task.cancel(thread)
 				end
-				coroutine.close(thread)
 			end
 		end
 
@@ -232,7 +232,7 @@ local function checkForAfter(state, machine)
 		return
 	end
 
-	local startTime = machine.logTime and workspace:GetServerTimeNow()
+	local startTime = os.clock()
 
 	for i, transition in state.events.after do
 		local thread = task.delay(transition.delay, function()
@@ -252,9 +252,9 @@ function executeTransitionContent(enabledTransitions, machine, context, ...)
 	end
 end
 
-local function passedGuards(transition, machine, context, ...)
+local function passedGuards(transition, machine, context)
 	for i, guard in transition.guards or {} do
-		if not guard(context, ...) then
+		if not guard(context, table.unpack(machine._args)) then
 			return false
 		end
 	end
@@ -277,7 +277,7 @@ function module.enterStates(enabledTransitions, machine, context, ...)
 			context.janitor = s.janitor
 		end
 
-		context.target = s.id
+		context.target = s
 
 		if s.OnEntry then
 			s.OnEntry(context, ...)
@@ -389,6 +389,12 @@ function module.microstep(enabledTransitions, machine, context)
 			table.remove(machine.log, #machine.log)
 		until #machine.log <= machine.maxLogs
 	end
+
+	if machine.debugMode then
+		print("Microstep: " .. #statesExited .. " exited, " .. #statesEntered .. " entered")
+	end
+
+	return statesExited, statesEntered
 end
 
 return module
