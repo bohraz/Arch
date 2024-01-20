@@ -395,6 +395,7 @@ function baseMachine:Start()
 	self.datamodel.active = true
 
 	Transition.enterStates({ { target = self.datamodel } }, self, self.context)
+    getActiveNestedStates(self.configuration, self.value)
 	task.spawn(mainEventLoop, self)
 	livingMachines[self.id] = self
 end
