@@ -47,14 +47,10 @@ local module = {}
 
 function module.exitStates(enabledTransitions, machine, context, ...)
 	local statesToExit = if not enabledTransitions then machine.configuration else computeExitSet(enabledTransitions)
-
+	warn("States to exit: ", statesToExit, enabledTransitions)
 	for i, s in statesToExit do
 		if machine.debugMode then
 			print("Exit: " .. s.id)
-		end
-
-		if s.parent then
-			s.parent.historyState = s
 		end
 
 		if s.OnExit then
@@ -77,9 +73,6 @@ function module.exitStates(enabledTransitions, machine, context, ...)
 
 		table.remove(machine.configuration, table.find(machine.configuration, s))
 		s.active = false
-		if s.parent then
-			s.parent.current = nil
-		end
 	end
 
 	return statesToExit
@@ -122,14 +115,14 @@ end
 local function addDescendantStatesToEnter(state, statesToEnter, deepHistory) -- completed
 	if state.history then
 		addDescendantStatesToEnter(
-			state.historyState or state.initial,
+			state.current or state.initial,
 			statesToEnter,
 			deepHistory or state.history == "deep"
 		)
 	else
 		if Check.isCompound(state) then
 			addDescendantStatesToEnter(
-				if deepHistory then state.historyState or state.initial else state.initial,
+				if deepHistory then state.current or state.initial else state.initial,
 				statesToEnter,
 				deepHistory
 			)
@@ -213,6 +206,7 @@ function module.enterStates(enabledTransitions, machine, context, ...)
 	local defaultHistoryContent = {}
 
 	local statesToEnter = computeEntrySet(enabledTransitions)
+	warn("States to enter: ", statesToEnter, enabledTransitions)
 	for i, s in statesToEnter do
 		if machine.debugMode then
 			print("Enter: " .. s.id)
@@ -253,6 +247,10 @@ function module.selectTransitions(machine, context) --completed
 		for _, s in Sift.Array.insert(getProperAncestors(state), 1, state) do
 			local breakLoop = false
 			for _, transition in if s.events then s.events[event] or {} else {} do
+				if table.find(enabledTransitions, transition) then
+					breakLoop = true
+					break
+				end
 				if passedGuards(transition, machine, context) then
 					table.insert(enabledTransitions, transition)
 					breakLoop = true
