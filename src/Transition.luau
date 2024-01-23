@@ -47,7 +47,7 @@ local module = {}
 
 function module.exitStates(enabledTransitions, machine, context, ...)
 	local statesToExit = if not enabledTransitions then machine.configuration else computeExitSet(enabledTransitions)
-	warn("States to exit: ", statesToExit, enabledTransitions)
+
 	for i, s in statesToExit do
 		if machine.debugMode then
 			print("Exit: " .. s.id)
@@ -206,7 +206,7 @@ function module.enterStates(enabledTransitions, machine, context, ...)
 	local defaultHistoryContent = {}
 
 	local statesToEnter = computeEntrySet(enabledTransitions)
-	warn("States to enter: ", statesToEnter, enabledTransitions)
+
 	for i, s in statesToEnter do
 		if machine.debugMode then
 			print("Enter: " .. s.id)

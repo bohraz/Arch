@@ -58,6 +58,8 @@ local function mainEventLoop(machine)
 		local macrostepDone = false
 		local event
 
+		local previousValue = table.clone(machine.value)
+
 		while machine._running and not macrostepDone do
 			if #machine._queue > 0 then
 				event = table.remove(machine._queue, 1)
@@ -71,15 +73,15 @@ local function mainEventLoop(machine)
 			end
 
 			if #enabledTransitions > 0 then
-				local exited = Transition.microstep(enabledTransitions, machine, machine.context)
-
-				machine.value = {}
-				machine.history = {}
-
-				getActiveNestedStates(machine.configuration, machine.value)
-				getExitedNestedStates(exited, machine.history)
+				Transition.microstep(enabledTransitions, machine, machine.context)
 			end
 		end
+
+		machine.value = {}
+		machine.history = {}
+
+		machine.value = Sift.Array.filter(machine.configuration, Check.isAtomic)
+		machine.history = Sift.Array.difference(previousValue, machine.value)
 
 		machine.onTransition:Fire({
 			context = machine.context,
@@ -395,6 +397,7 @@ function baseMachine:Start()
 	self.datamodel.active = true
 
 	Transition.enterStates({ { target = self.datamodel } }, self, self.context)
+	self.value = Sift.Array.filter(self.configuration, Check.isAtomic)
 	task.spawn(mainEventLoop, self)
 	livingMachines[self.id] = self
 end
