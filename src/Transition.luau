@@ -25,7 +25,15 @@ local function findLCCA(stateList) -- completed
 end
 
 local function getTransitionDomain(transition)
-	return findLCCA({ transition.target, transition.source })
+	local source = transition.source
+	local target = transition.target
+	if Check.isDescendant(target, source) then
+		source = target
+		while source.current do
+			source = source.current
+		end
+	end
+	return findLCCA({ target, source })
 end
 
 --Finds the LCCA of each transition and adds each active child of the LCCA to the exit list in ancestry order.

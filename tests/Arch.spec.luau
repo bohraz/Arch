@@ -279,6 +279,54 @@ return function()
 				assert(machine.configuration[1].id == "GrandchildE" or machine.configuration[1].id == "GrandchildF")
 				assert(machine.configuration[2].id == "GrandchildE" or machine.configuration[2].id == "GrandchildF")
 			end).never.to.throw()
+			expect(function()
+				local definition = {
+
+					id = "Test",
+					parallel = true,
+
+					states = {
+						PlayerActions = {
+
+							initial = "Idle",
+
+							events = {
+								Attack = "Attacking",
+							},
+
+							states = {
+								Idle = {},
+								Attacking = {
+									OnEntry = function()
+										print("entered")
+									end,
+								},
+								Blocking = {},
+								BlockBroken = {},
+							},
+						},
+						CombatState = {
+							initial = "OutsideCombat",
+							states = {
+								OutsideCombat = {
+									events = {
+										Combat = "InCombat",
+									},
+								},
+								InCombat = {
+									events = {
+										Safe = "OutsideCombat",
+									},
+								},
+							},
+						},
+					},
+				}
+
+				local machine = arch.createMachine(definition)
+				machine:Start()
+				machine:Send("Attack")
+			end).never.to.throw()
 		end)
 
 		it("should exit and destroy", function()
