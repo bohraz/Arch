@@ -1,6 +1,4 @@
 local Sift = require(script.Parent.Parent.sift)
-local Signal = require(script.Parent.Parent.signal)
-local Promise = require(script.Parent.Parent.promise)
 local Check = require(script.Parent.Check)
 
 local function getProperAncestors(state1, state2)
@@ -61,9 +59,21 @@ function module.exitStates(enabledTransitions, machine, context, ...)
 			print("Exit: " .. s.id)
 		end
 
+		-- Get target state of the transition
+		context.source = s
+		for k, v in enabledTransitions do
+			if v.source == s then
+				context.target = v.target
+				break
+			end
+		end
+
 		if s.OnExit then
 			s.OnExit(context, ...)
 		end
+
+		context.source = nil
+		context.target = nil
 
 		if s.threads and #s.threads > 0 then
 			while #s.threads > 0 do
@@ -194,7 +204,11 @@ function executeTransitionContent(enabledTransitions, machine, context, ...)
 	for i, t in enabledTransitions do
 		for _, action in t.actions or {} do
 			context.janitor = if t.target then t.target.janitor else nil
+			context.source = t.source.id
+			context.target = t.target.id
 			action(context, ...)
+			context.source = nil
+			context.target = nil
 		end
 	end
 end
@@ -224,13 +238,22 @@ function module.enterStates(enabledTransitions, machine, context, ...)
 			context.janitor = s.janitor
 		end
 
+		--Get source state of the transition
 		context.target = s
+		context.source = s
+		for _, t in enabledTransitions do
+			if t.target == s then
+				context.source = t.source
+				break
+			end
+		end
 
 		if s.OnEntry then
 			s.OnEntry(context, ...)
 		end
 
 		context.target = nil
+		context.source = nil
 
 		if s.parent and not Check.isParallel(s.parent) then
 			s.parent.current = s

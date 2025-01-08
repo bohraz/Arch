@@ -1,12 +1,10 @@
 local Sift = require(script.Parent.sift)
 local Signal = require(script.Parent.signal)
-local Promise = require(script.Parent.promise)
 local Janitor = require(script.Parent.janitor)
 local Transition = require(script.Transition)
 local Check = require(script.Check)
 
 local function createContext(machine, context)
-	context.Promise = Promise
 	context.Sift = Sift
 
 	function context.Send(eventName, ...)
@@ -412,7 +410,7 @@ function baseMachine:Stop()
 		return
 	end
 
-	Transition.exitStates(false, self, self.context)
+	Transition.exitStates({}, self, self.context)
 	startStopDatamodel(self.datamodel, self, true)
 
 	self._running = false

@@ -4,12 +4,11 @@ description = "A robust state machine library for Roblox, offering hierarchical 
 license = "MIT"
 realm = "shared"
 registry = "https://github.com/UpliftGames/wally-index"
-version = "0.3.3"
+version = "0.3.5"
 exclude = []
 
 [dependencies]
 sift = "csqrl/sift@0.0.8"
 signal = "sleitnick/signal@2.0.1"
-promise = "evaera/promise@4.0.0"
 janitor = "howmanysmall/janitor@1.15.6"
 testez = "roblox/testez@0.4.1"
