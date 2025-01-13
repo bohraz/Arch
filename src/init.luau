@@ -54,6 +54,7 @@ local function mainEventLoop(machine)
 	while machine._running do
 		local enabledTransitions = {}
 		local macrostepDone = false
+		local stepped = false
 		local event
 
 		local previousValue = table.clone(machine.value)
@@ -71,21 +72,24 @@ local function mainEventLoop(machine)
 			end
 
 			if #enabledTransitions > 0 then
+				stepped = true
 				Transition.microstep(enabledTransitions, machine, machine.context)
 			end
 		end
 
-		machine.value = {}
-		machine.history = {}
+		if stepped then
+			machine.value = {}
+			machine.history = {}
 
-		machine.value = Sift.Array.filter(machine.configuration, Check.isAtomic)
-		machine.history = Sift.Array.difference(previousValue, machine.value)
+			machine.value = Sift.Array.filter(machine.configuration, Check.isAtomic)
+			machine.history = Sift.Array.difference(previousValue, machine.value)
 
-		machine.onTransition:Fire({
-			context = machine.context,
-			value = machine.value,
-			history = machine.history,
-		})
+			machine.onTransition:Fire({
+				context = machine.context,
+				value = machine.value,
+				history = machine.history,
+			}, table.unpack(machine._args or {}))
+		end
 
 		machine.EventAdded:Wait()
 	end
