@@ -414,7 +414,7 @@ function baseMachine:Stop()
 		return
 	end
 
-	Transition.exitStates({}, self, self.context)
+	Transition.exitStates(nil, self, self.context)
 	startStopDatamodel(self.datamodel, self, true)
 
 	self._running = false
