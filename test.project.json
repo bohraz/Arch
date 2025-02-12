@@ -7,7 +7,7 @@
 			"testing": {
 				"$path": "tests",
 				"Packages": {
-					"$path": "Packages",
+					"$path": "roblox_packages",
 					"Arch": {
 						"$path": "default.project.json"
 					}
