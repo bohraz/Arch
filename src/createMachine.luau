@@ -69,17 +69,23 @@ type States = { [string]: CompoundState | AtomicState }
 
 type MachineConfig = {
 	read name: string,
-	read initial: MachineSymbol,
 	read world: jecs.World?,
-	read context: ContextConfig?,
-	read debugMode: boolean?,
 	read machineComponent: jecs.Entity?,
 
+	read ecs: {},
+
+	read options: {
+		read debugMode: boolean?,
+		read log: boolean?,
+		read maxLongs: number?,
+	},
+
 	read actions: { [string]: ActionFn }?,
+	read context: ContextConfig?,
 	read guards: { [string]: GuardFn }?,
 	read components: { jecs.Entity }?,
 
-	read states: States,
+	read states: { initial: string } & States,
 }
 
 type MachineComponent = {
@@ -98,8 +104,10 @@ type Machine = {
 	read stop: () -> nil,
 }
 
-local machine: MachineConfig = {
+local machine = {
 	name = "TestMachine",
+	world = {},
+
 	context = {
 		player = 0,
 	},
@@ -122,7 +130,7 @@ local machine: MachineConfig = {
 			},
 		},
 	},
-} :: MachineConfig
+}
 
 local function interpretMachine(states: States): States
 	local flattenedStates = {}
@@ -162,7 +170,6 @@ local function interpretMachine(states: States): States
 end
 
 local function createMachine(config: MachineConfig)
-	local _initial = config.initial
 	local _states = interpretMachine(config.states)
 
 	-- ECS
@@ -171,11 +178,13 @@ local function createMachine(config: MachineConfig)
 	local _changed: jecs.Entity<MachineComponent> = jecs.pair(_component, jecs.Rest)
 	world:set(_component, jecs.Name, config.name)
 
-	return {
+	local machine = {
 		name = config.name,
 		component = _component,
 		system = function() end,
 		start = function() end,
 		stop = function() end,
 	}
+
+	return machine
 end
