@@ -37,7 +37,7 @@ end
 --Finds the LCCA of each transition and adds each active child of the LCCA to the exit list in ancestry order.
 local function computeExitSet(enabledTransitions)
 	local statesToExit = {}
-	for i, t in enabledTransitions do
+	for i, t in enabledTransitions or {} do
 		if t.target then -- for targetless transitions only
 			local child = getTransitionDomain(t) --initial point of exit Check.is the LCCA of target and source
 			while child.current do
@@ -61,7 +61,7 @@ function module.exitStates(enabledTransitions, machine, context, ...)
 
 		-- Get target state of the transition
 		context.source = s
-		for k, v in enabledTransitions do
+		for k, v in enabledTransitions or {} do
 			if v.source == s then
 				context.target = v.target
 				break
@@ -105,7 +105,7 @@ end
 local function removeConflictingTransitions(enabledTransitions) -- completed
 	local filteredTransitions = {}
 
-	for _, t1 in enabledTransitions do
+	for _, t1 in enabledTransitions or {} do
 		local t1Preempted = false
 		local transitionsToRemove = {}
 
@@ -201,7 +201,7 @@ local function checkForAfter(state, machine)
 end
 
 function executeTransitionContent(enabledTransitions, machine, context, ...)
-	for i, t in enabledTransitions do
+	for i, t in enabledTransitions or {} do
 		for _, action in t.actions or {} do
 			context.janitor = if t.target then t.target.janitor else nil
 			context.source = t.source.id
@@ -241,7 +241,7 @@ function module.enterStates(enabledTransitions, machine, context, ...)
 		--Get source state of the transition
 		context.target = s
 		context.source = s
-		for _, t in enabledTransitions do
+		for _, t in enabledTransitions or {} do
 			if t.target == s then
 				context.source = t.source
 				break
